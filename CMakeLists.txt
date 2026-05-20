@@ -11,6 +11,7 @@ if(ESP_PLATFORM)
         REQUIRES
             esp_timer
             esp_driver_gpio
+            esp_adc
     )
 
     target_compile_options(${COMPONENT_LIB} PUBLIC -std=gnu++26)
