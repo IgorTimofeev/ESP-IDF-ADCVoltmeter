@@ -12,7 +12,7 @@ namespace YOBA {
 		const uint32_t dividerResistanceR1,
 		const uint32_t dividerResistanceR2,
 
-		const uint8_t multisamplingThreshold = 8
+		const uint8_t multisamplingThreshold
 	) :
 		_ADCUnit(ADCUnit),
 		_ADCOneshotUnit(ADCOneshotUnit),
