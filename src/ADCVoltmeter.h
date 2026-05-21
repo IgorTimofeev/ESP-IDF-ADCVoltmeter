@@ -16,8 +16,8 @@ namespace YOBA {
 				const adc_oneshot_unit_handle_t* ADCOneshotUnit,
 				const adc_channel_t ADCChannel,
 
-				const uint32_t inputVoltageMinMV,
-				const uint32_t inputVoltageMaxMV,
+				const uint32_t sourceVoltageMinMV,
+				const uint32_t sourceVoltageMaxMV,
 
 				const uint32_t dividerResistanceR1,
 				const uint32_t dividerResistanceR2,
@@ -29,30 +29,26 @@ namespace YOBA {
 
 			virtual void setup();
 
-			uint32_t getInputVoltageMinMV() const;
+			virtual uint16_t readSample();
 
-			uint32_t getInputVoltageMaxMV() const;
+			virtual void tick();
 
+			uint32_t getsourceVoltageMinMV() const;
+			uint32_t getsourceVoltageMaxMV() const;
 			uint32_t getDividerResistanceR1() const;
-
 			uint32_t getDividerResistanceR2() const;
-
 			uint8_t getMultisamplingThreshold() const;
-
 			uint16_t getVoltageMV() const;
 
 			uint8_t getCharge() const;
-
 			float getChargeF() const;
-
-			virtual void tick();
 
 		private:
 			adc_unit_t _ADCUnit;
 			const adc_oneshot_unit_handle_t* _ADCOneshotUnit;
 			adc_channel_t _ADCChannel;
-			uint32_t _inputVoltageMinMV;
-			uint32_t _inputVoltageMaxMV;
+			uint32_t _sourceVoltageMinMV;
+			uint32_t _sourceVoltageMaxMV;
 			uint32_t _dividerResistanceR1;
 			uint32_t _dividerResistanceR2;
 			uint8_t _multisamplingThreshold;
@@ -61,6 +57,8 @@ namespace YOBA {
 			uint32_t _ADCSampleSum = 0;
 			uint8_t _ADSSampleIndex = 0;
 			uint16_t _voltage = 0;
+
+			void computeVoltage(const uint16_t ADCValue);
 	};
 
 	class TransistorControlledADCVoltmeter : public ADCVoltmeter {
@@ -72,8 +70,8 @@ namespace YOBA {
 				const adc_oneshot_unit_handle_t* ADCOneshotUnit,
 				const adc_channel_t ADCChannel,
 
-				const uint32_t inputVoltageMinMV,
-				const uint32_t inputVoltageMaxMV,
+				const uint32_t sourceVoltageMinMV,
+				const uint32_t sourceVoltageMaxMV,
 
 				const uint32_t dividerResistanceR1,
 				const uint32_t dividerResistanceR2,
@@ -83,7 +81,7 @@ namespace YOBA {
 
 			void setup() override;
 
-			void tick() override;
+			uint16_t readSample() override;
 
 		private:
 			gpio_num_t _transistorPin;

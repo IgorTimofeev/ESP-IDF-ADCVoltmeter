@@ -6,8 +6,8 @@ namespace YOBA {
 		const adc_oneshot_unit_handle_t* ADCOneshotUnit,
 		const adc_channel_t ADCChannel,
 
-		const uint32_t inputVoltageMinMV,
-		const uint32_t inputVoltageMaxMV,
+		const uint32_t sourceVoltageMinMV,
+		const uint32_t sourceVoltageMaxMV,
 
 		const uint32_t dividerResistanceR1,
 		const uint32_t dividerResistanceR2,
@@ -18,8 +18,8 @@ namespace YOBA {
 		_ADCOneshotUnit(ADCOneshotUnit),
 		_ADCChannel(ADCChannel),
 
-		_inputVoltageMinMV(inputVoltageMinMV),
-		_inputVoltageMaxMV(inputVoltageMaxMV),
+		_sourceVoltageMinMV(sourceVoltageMinMV),
+		_sourceVoltageMaxMV(sourceVoltageMaxMV),
 
 		_dividerResistanceR1(dividerResistanceR1),
 		_dividerResistanceR2(dividerResistanceR2),
@@ -30,6 +30,7 @@ namespace YOBA {
 	}
 
 	void ADCVoltmeter::setup() {
+		// Setting up ADC
 		adc_oneshot_chan_cfg_t channelConfig {};
 		channelConfig.atten = ADC_ATTEN_DB_12;
 		channelConfig.bitwidth = ADC_BITWIDTH_12;
@@ -51,14 +52,46 @@ namespace YOBA {
 		ESP_ERROR_CHECK(adc_cali_create_scheme_line_fitting(&fittingConfig, &_ADCCaliHandle));
 
 		#endif
+
+		// Reading first sample & computing initial voltage without averaging
+		computeVoltage(readSample());
 	}
 
-	uint32_t ADCVoltmeter::getInputVoltageMinMV() const {
-		return _inputVoltageMinMV;
+	uint16_t ADCVoltmeter::readSample() {
+		int sample;
+		ESP_ERROR_CHECK_WITHOUT_ABORT(adc_oneshot_get_calibrated_result(*_ADCOneshotUnit, _ADCCaliHandle, _ADCChannel, &sample));
+
+		return sample;
 	}
 
-	uint32_t ADCVoltmeter::getInputVoltageMaxMV() const {
-		return _inputVoltageMaxMV;
+	void ADCVoltmeter::computeVoltage(const uint16_t ADCValue) {
+		const uint16_t GPIOVoltageMaxMV = _sourceVoltageMaxMV * _dividerResistanceR2 / (_dividerResistanceR1 + _dividerResistanceR2);
+		const auto voltage = _sourceVoltageMinMV + (_sourceVoltageMaxMV - _sourceVoltageMinMV) * ADCValue / GPIOVoltageMaxMV;
+
+		// ESP_LOGI("bat", "voltage after: %d", voltage);
+
+		_voltage = static_cast<uint16_t>(voltage);
+	}
+
+	void ADCVoltmeter::tick() {
+		_ADCSampleSum += readSample();
+		_ADSSampleIndex++;
+
+		if (_ADSSampleIndex < _multisamplingThreshold)
+			return;
+
+		computeVoltage(_ADCSampleSum / _multisamplingThreshold);
+
+		_ADCSampleSum = 0;
+		_ADSSampleIndex = 0;
+	}
+
+	uint32_t ADCVoltmeter::getsourceVoltageMinMV() const {
+		return _sourceVoltageMinMV;
+	}
+
+	uint32_t ADCVoltmeter::getsourceVoltageMaxMV() const {
+		return _sourceVoltageMaxMV;
 	}
 
 	uint32_t ADCVoltmeter::getDividerResistanceR1() const {
@@ -78,51 +111,19 @@ namespace YOBA {
 	}
 
 	uint8_t ADCVoltmeter::getCharge() const {
-		if (_voltage <= _inputVoltageMinMV) {
+		if (_voltage <= _sourceVoltageMinMV) {
 			return 0;
 		}
 
-		if (_voltage >= _inputVoltageMaxMV) {
+		if (_voltage >= _sourceVoltageMaxMV) {
 			return 0xFF;
 		}
 
-		return static_cast<uint8_t>((_voltage - _inputVoltageMinMV) * 0xFF / (_inputVoltageMaxMV - _inputVoltageMinMV));
+		return static_cast<uint8_t>((_voltage - _sourceVoltageMinMV) * 0xFF / (_sourceVoltageMaxMV - _sourceVoltageMinMV));
 	}
 
 	float ADCVoltmeter::getChargeF() const {
 		return static_cast<float>(getCharge()) /  static_cast<float>(0xFF);
-	}
-
-	void ADCVoltmeter::tick() {
-		int ADCSample;
-		const auto error = adc_oneshot_get_calibrated_result(*_ADCOneshotUnit, _ADCCaliHandle, _ADCChannel, &ADCSample);
-
-		// Timeout on same oneshot unit?
-		if (error != ESP_OK) {
-			ESP_ERROR_CHECK_WITHOUT_ABORT(error);
-			return;
-		}
-
-		_ADCSampleSum += ADCSample;
-		_ADSSampleIndex++;
-
-		if (_ADSSampleIndex < _multisamplingThreshold)
-			return;
-
-		const auto ADCValue = _ADCSampleSum / _multisamplingThreshold;
-
-		_ADCSampleSum = 0;
-		_ADSSampleIndex = 0;
-
-		// ESP_LOGI("bat", "voltage before: %d", voltage);
-
-		// Restoring real voltage
-		const uint16_t voltageOnDividerMaxMV = _inputVoltageMaxMV * _dividerResistanceR2 / (_dividerResistanceR1 + _dividerResistanceR2);
-		const auto voltage = _inputVoltageMinMV + (_inputVoltageMaxMV - _inputVoltageMinMV) * ADCValue / voltageOnDividerMaxMV;
-
-		// ESP_LOGI("bat", "voltage after: %d", voltage);
-
-		_voltage = static_cast<uint16_t>(voltage);
 	}
 
 	TransistorControlledADCVoltmeter::TransistorControlledADCVoltmeter(
@@ -132,8 +133,8 @@ namespace YOBA {
 		const adc_oneshot_unit_handle_t* ADCOneshotUnit,
 		const adc_channel_t ADCChannel,
 
-		const uint32_t inputVoltageMinMV,
-		const uint32_t inputVoltageMaxMV,
+		const uint32_t sourceVoltageMinMV,
+		const uint32_t sourceVoltageMaxMV,
 
 		const uint32_t dividerResistanceR1,
 		const uint32_t dividerResistanceR2,
@@ -145,8 +146,8 @@ namespace YOBA {
 			ADCOneshotUnit,
 			ADCChannel,
 
-			inputVoltageMinMV,
-			inputVoltageMaxMV,
+			sourceVoltageMinMV,
+			sourceVoltageMaxMV,
 
 			dividerResistanceR1,
 			dividerResistanceR2,
@@ -176,11 +177,13 @@ namespace YOBA {
 		ADCVoltmeter::setup();
 	}
 
-	void TransistorControlledADCVoltmeter::tick() {
+	uint16_t TransistorControlledADCVoltmeter::readSample() {
 		gpio_set_level(_transistorPin, true);
 
-		ADCVoltmeter::tick();
+		const auto sample = ADCVoltmeter::readSample();
 
 		gpio_set_level(_transistorPin, false);
+
+		return sample;
 	}
 }
