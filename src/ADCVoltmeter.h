@@ -28,19 +28,18 @@ namespace YOBA {
 			virtual ~ADCVoltmeter() = default;
 
 			virtual void setup();
-
-			virtual uint16_t readSample();
-
 			virtual void tick();
 
-			uint32_t getsourceVoltageMinMV() const;
-			uint32_t getsourceVoltageMaxMV() const;
+			uint32_t getSourceVoltageMinMV() const;
+			uint32_t getSourceVoltageMaxMV() const;
 			uint32_t getDividerResistanceR1() const;
 			uint32_t getDividerResistanceR2() const;
 			uint8_t getMultisamplingThreshold() const;
-			uint16_t getVoltageMV() const;
 
-			uint8_t getCharge() const;
+			virtual uint16_t readADCVoltage();
+			uint32_t getVoltageMV() const;
+
+			uint16_t getCharge16() const;
 			float getChargeF() const;
 
 		private:
@@ -54,11 +53,11 @@ namespace YOBA {
 			uint8_t _multisamplingThreshold;
 
 			adc_cali_handle_t _ADCCaliHandle {};
-			uint32_t _ADCSampleSum = 0;
-			uint8_t _ADSSampleIndex = 0;
-			uint16_t _voltage = 0;
+			uint32_t _sampleSum = 0;
+			uint8_t _sampleIndex = 0;
+			uint32_t _sourceVoltageMV = 0;
 
-			void computeVoltage(const uint16_t ADCValue);
+			void computeDividerVoltage(const uint16_t ADCVoltageMV);
 	};
 
 	class TransistorControlledADCVoltmeter : public ADCVoltmeter {
@@ -81,7 +80,7 @@ namespace YOBA {
 
 			void setup() override;
 
-			uint16_t readSample() override;
+			uint16_t readADCVoltage() override;
 
 		private:
 			gpio_num_t _transistorPin;
